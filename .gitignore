@@ -1,3 +1,5 @@
 .env
 .idea
 out
+requestclient/
+.env.postgres
