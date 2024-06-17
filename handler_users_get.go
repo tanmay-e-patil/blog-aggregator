@@ -18,5 +18,5 @@ func (apiCfg *apiConfig) handlerUserGet(w http.ResponseWriter, r *http.Request) 
 		respondWithError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	respondWithJSON(w, http.StatusOK, user)
+	respondWithJSON(w, http.StatusOK, databaseUserToUser(user))
 }
