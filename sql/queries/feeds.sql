@@ -4,4 +4,4 @@ VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetAllFeeds :many
-SELECT * from feeds;
+SELECT * FROM feeds;
