@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/tanmay-e-patil/blog-aggregator/internal/database"
@@ -25,6 +26,12 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 	id, err := uuid.NewUUID()
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err.Error())
+	}
+
+	apiKeyBytes := make([]byte, 32)
+	_, err = rand.Read(apiKeyBytes)
+	if err != nil {
+		return
 	}
 
 	user, err := cfg.DB.CreateUser(r.Context(), database.CreateUserParams{
