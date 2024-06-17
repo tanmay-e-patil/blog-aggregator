@@ -36,9 +36,12 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/healthz", handlerReadiness)
 	mux.HandleFunc("GET /v1/err", handlerErr)
+
 	mux.HandleFunc("POST /v1/users", apiCfg.handlerUsersCreate)
 	mux.HandleFunc("GET /v1/users", apiCfg.handlerUserGet)
+
 	mux.HandleFunc("POST /v1/feeds", apiCfg.middlewareAuth(apiCfg.handlerFeedsCreate))
+	mux.HandleFunc("GET /v1/feeds", apiCfg.handlerFeedsGet)
 
 	srv := &http.Server{
 		Addr:    ":" + port,
