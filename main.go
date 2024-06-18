@@ -52,6 +52,13 @@ func main() {
 		Handler: mux,
 	}
 
+	go func() {
+		err := apiCfg.worker(10)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+
 	log.Printf("Serving on port: %s\n", port)
 	log.Fatal(srv.ListenAndServe())
 }
