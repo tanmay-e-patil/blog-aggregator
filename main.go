@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 import _ "github.com/lib/pq"
 
@@ -21,7 +22,13 @@ func main() {
 		return
 	}
 	port := os.Getenv("PORT")
+	if port == "" {
+		log.Fatal("$PORT must be set")
+	}
 	databaseUrl := os.Getenv("DATABASE_URL")
+	if databaseUrl == "" {
+		log.Fatal("$DATABASE_URL must be set")
+	}
 
 	db, err := sql.Open("postgres", databaseUrl)
 	if err != nil {
@@ -47,17 +54,16 @@ func main() {
 	mux.HandleFunc("GET /v1/feed_follows", apiCfg.middlewareAuth(apiCfg.handlerFeedFollowsGetByUser))
 	mux.HandleFunc("DELETE /v1/feed_follows/{feedFollowId}", apiCfg.middlewareAuth(apiCfg.handlerFeedFollowsDelete))
 
+	mux.HandleFunc("GET /v1/posts", apiCfg.middlewareAuth(apiCfg.handlerPostsGet))
+
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
 	}
 
-	go func() {
-		err := apiCfg.worker(10)
-		if err != nil {
-			log.Println(err)
-		}
-	}()
+	const collectionConcurrency = 10
+	const collectionInterval = time.Minute
+	go startScraping(dbQueries, collectionConcurrency, collectionInterval)
 
 	log.Printf("Serving on port: %s\n", port)
 	log.Fatal(srv.ListenAndServe())

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"github.com/tanmay-e-patil/blog-aggregator/internal/database"
 	"time"
 
@@ -30,6 +31,38 @@ type FeedFollow struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	UserID    uuid.UUID `json:"user_id"`
 	FeedID    uuid.UUID `json:"feed_id"`
+}
+
+type Post struct {
+	ID          uuid.UUID      `json:"id"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	Title       string         `json:"title"`
+	Url         string         `json:"url"`
+	Description sql.NullString `json:"description"`
+	PublishedAt sql.NullTime   `json:"published_at"`
+	FeedID      uuid.UUID      `json:"feed_id"`
+}
+
+func databasePostsToPosts(posts []database.Post) []Post {
+	result := make([]Post, len(posts))
+	for i, post := range posts {
+		result[i] = databasePostToPost(post)
+	}
+	return result
+}
+
+func databasePostToPost(post database.Post) Post {
+	return Post{
+		ID:          post.ID,
+		CreatedAt:   post.CreatedAt,
+		UpdatedAt:   post.UpdatedAt,
+		Title:       post.Title,
+		Url:         post.Url,
+		Description: post.Description,
+		PublishedAt: post.PublishedAt,
+		FeedID:      post.FeedID,
+	}
 }
 
 func databaseFeedFollowToFeedFollow(feedFollow database.FeedFollow) FeedFollow {

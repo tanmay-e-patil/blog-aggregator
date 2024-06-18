@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/xml"
+	"github.com/google/uuid"
+	"github.com/tanmay-e-patil/blog-aggregator/internal/database"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -27,7 +31,7 @@ type RSSItem struct {
 	PubDate     string `xml:"pubDate"`
 }
 
-func fetchRSSFeeds(url string) (*RSSFeed, error) {
+func fetchRSSFeed(url string) (*RSSFeed, error) {
 	httpClient := &http.Client{
 		Timeout: time.Second * 10,
 	}
@@ -47,28 +51,69 @@ func fetchRSSFeeds(url string) (*RSSFeed, error) {
 	return &rss, nil
 }
 
-func (cfg *apiConfig) worker(concurrency int) error {
-	feedsToFetch, err := cfg.DB.GetNextFeedsToFetch(context.Background(), int32(concurrency))
+func startScraping(db *database.Queries, concurrency int, timeBetweenRequest time.Duration) {
+	log.Printf("Collecting feeds every %s on %v goroutines...", timeBetweenRequest, concurrency)
+	ticker := time.NewTicker(timeBetweenRequest)
+
+	for ; ; <-ticker.C {
+		feeds, err := db.GetNextFeedsToFetch(context.Background(), int32(concurrency))
+		if err != nil {
+			log.Println("Couldn't get next feeds to fetch", err)
+			continue
+		}
+		log.Printf("Found %v feeds to fetch!", len(feeds))
+
+		wg := &sync.WaitGroup{}
+		for _, feed := range feeds {
+			wg.Add(1)
+			go scrapeFeed(db, wg, feed)
+		}
+		wg.Wait()
+	}
+}
+
+func scrapeFeed(db *database.Queries, wg *sync.WaitGroup, feed database.Feed) {
+	defer wg.Done()
+	err := db.MarkFeedFetched(context.Background(), feed.ID)
 	if err != nil {
-		return err
+		log.Printf("Couldn't mark feed %s fetched: %v", feed.Name, err)
+		return
 	}
-	var wg sync.WaitGroup
-	for _, feed := range feedsToFetch {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			rss, err := fetchRSSFeeds(feed.Url)
-			if err != nil {
-				log.Printf("Error fetching RSS feed for %s: %s", feed.Url, err)
-			}
-			log.Printf("Fetched RSS feed for %s", feed.Url)
 
-			for _, item := range rss.Channel.Item {
-				log.Printf("Fetching %s", item.Title)
-			}
-
-		}()
+	feedData, err := fetchRSSFeed(feed.Url)
+	if err != nil {
+		log.Printf("Couldn't collect feed %s: %v", feed.Name, err)
+		return
 	}
-	wg.Wait()
-	return nil
+	for _, item := range feedData.Channel.Item {
+		publishedAt := sql.NullTime{}
+		if t, err := time.Parse(time.RFC1123Z, item.PubDate); err == nil {
+			publishedAt = sql.NullTime{
+				Time:  t,
+				Valid: true,
+			}
+		}
+
+		_, err = db.CreatePost(context.Background(), database.CreatePostParams{
+			ID:        uuid.New(),
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+			FeedID:    feed.ID,
+			Title:     item.Title,
+			Description: sql.NullString{
+				String: item.Description,
+				Valid:  true,
+			},
+			Url:         item.Link,
+			PublishedAt: publishedAt,
+		})
+		if err != nil {
+			if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+				continue
+			}
+			log.Printf("Couldn't create post: %v", err)
+			continue
+		}
+	}
+	log.Printf("Feed %s collected, %v posts found", feed.Name, len(feedData.Channel.Item))
 }
