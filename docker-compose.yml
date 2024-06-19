@@ -1,10 +1,48 @@
 services:
+  blog-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blog-api
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./.env.docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - blogApiNetwork
+
   postgres:
     image: postgres:latest
     container_name: postgres
     ports:
       - "5432:5432"
+    volumes:
+      - postgresDB:/var/lib/postgresql/data
     env_file:
       - ./.env.postgres
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+    networks:
+      - blogApiNetwork
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.goose
+    env_file:
+      - .env.docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - blogApiNetwork
+volumes:
+  postgresDB:
+
+networks:
+  blogApiNetwork:
+    driver: bridge

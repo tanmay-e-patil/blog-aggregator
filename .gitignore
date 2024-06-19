@@ -1,5 +1,8 @@
 .env
+.env.postgres
+.env.docker
+
 .idea
 out
+
 requestclient/
-.env.postgres
